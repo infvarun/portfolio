@@ -4,11 +4,10 @@ import {
   User, Briefcase, Code, FolderOpen, GraduationCap, Award, Mail, 
   Linkedin, Github, ExternalLink, Play, Settings, Plus, Trash2, 
   Save, MessageSquare, ChevronRight, X, Terminal,
-  Cpu, Database, Layout, Globe, Search, Shield, Zap, Send, CheckCircle2, Bot
+  Cpu, Database, Layout, Globe, Search, Shield, Zap, Send, CheckCircle2
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { ChatBot } from './components/ChatBot';
 
 // --- Utility ---
 function cn(...inputs: ClassValue[]) {
@@ -497,27 +496,6 @@ export default function Workbench() {
       position: { x: 700, y: 300 },
       color: '#f43f5e',
       content: <ContactForm />
-    },
-    {
-      id: 'chatbot',
-      type: 'ai',
-      title: 'Varun AI',
-      icon: Bot,
-      position: { x: 700, y: 450 },
-      color: '#3b82f6',
-      content: (
-        <div className="space-y-4">
-          <p className="text-sm">Ask anything about Varun's professional profile.</p>
-          <button 
-            onClick={() => setShowChat(true)}
-            className="w-full py-3 bg-blue-600/20 border border-blue-500/50 rounded-xl text-blue-500 font-bold text-xs hover:bg-blue-600/30 transition-all flex items-center justify-center gap-2"
-          >
-            <Bot size={16} />
-            INITIALIZE_CHAT
-          </button>
-          <p className="text-[10px] text-zinc-500 italic">Guardrails active: Restricted to Varun's profile only.</p>
-        </div>
-      )
     }
   ]);
 
@@ -531,13 +509,11 @@ export default function Workbench() {
     { from: 'skills', to: 'neo4j' },
     { from: 'profile', to: 'terminal' },
     { from: 'profile', to: 'contact' },
-    { from: 'terminal', to: 'chatbot' },
   ]);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [activeNodeIndex, setActiveNodeIndex] = useState<number>(-1);
-  const [showChat, setShowChat] = useState(false);
   const [executionStatus, setExecutionStatus] = useState<'idle' | 'running' | 'success'>('idle');
   const workbenchRef = useRef<HTMLDivElement>(null);
 
@@ -624,7 +600,6 @@ export default function Workbench() {
           { icon: Plus, label: 'Add Node' },
           { icon: Layout, label: 'Auto Layout' },
           { icon: Search, label: 'Search' },
-          { icon: MessageSquare, label: 'Chat', action: () => setShowChat(true) },
           { icon: Shield, label: 'Security' },
           { icon: Database, label: 'Data' },
         ].map((tool, i) => (
@@ -744,13 +719,6 @@ export default function Workbench() {
             />
             <DetailPanel node={selectedNode} onClose={() => setSelectedNodeId(null)} />
           </>
-        )}
-      </AnimatePresence>
-
-      {/* ChatBot */}
-      <AnimatePresence>
-        {showChat && (
-          <ChatBot onClose={() => setShowChat(false)} />
         )}
       </AnimatePresence>
 
