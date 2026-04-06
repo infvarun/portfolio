@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
 import { 
   User, Briefcase, Code, FolderOpen, GraduationCap, Award, Mail, 
@@ -516,6 +516,42 @@ export default function Workbench() {
   const [activeNodeIndex, setActiveNodeIndex] = useState<number>(-1);
   const [executionStatus, setExecutionStatus] = useState<'idle' | 'running' | 'success'>('idle');
   const workbenchRef = useRef<HTMLDivElement>(null);
+
+  // Center the node graph in the viewport on initial render
+  useLayoutEffect(() => {
+    if (!workbenchRef.current) return;
+    const rect = workbenchRef.current.getBoundingClientRect();
+    const HEADER_HEIGHT = 64;
+    const NODE_WIDTH = 192; // w-48
+    const NODE_HEIGHT = 80; // h-20
+
+    setNodes(prev => {
+      if (prev.length === 0) return prev;
+      const xs = prev.map(n => n.position.x);
+      const ys = prev.map(n => n.position.y);
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs) + NODE_WIDTH;
+      const maxY = Math.max(...ys) + NODE_HEIGHT;
+
+      const graphCenterX = (minX + maxX) / 2;
+      const graphCenterY = (minY + maxY) / 2;
+
+      const canvasCenterX = rect.width / 2;
+      const canvasCenterY = HEADER_HEIGHT + (rect.height - HEADER_HEIGHT) / 2;
+
+      const offsetX = canvasCenterX - graphCenterX;
+      const offsetY = canvasCenterY - graphCenterY;
+
+      return prev.map(n => ({
+        ...n,
+        position: {
+          x: n.position.x + offsetX,
+          y: n.position.y + offsetY,
+        },
+      }));
+    });
+  }, []);
 
   const handleDrag = (id: string, pos: NodePosition) => {
     setNodes(prev => prev.map(n => n.id === id ? { ...n, position: pos } : n));
