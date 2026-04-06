@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
 import { 
   User, Briefcase, Code, FolderOpen, GraduationCap, Award, Mail, 
@@ -277,14 +277,46 @@ const Loader2 = ({ size, className }: { size: number, className?: string }) => (
 
 // --- Main App ---
 
+// Compute centered positions based on current viewport dimensions
+function centeredPosition(x: number, y: number, dx: number, dy: number): NodePosition {
+  return { x: x + dx, y: y + dy };
+}
+
+function computeCenteringOffset(): { dx: number; dy: number } {
+  const HEADER_HEIGHT = 64;
+  const NODE_WIDTH = 192; // w-48
+  const NODE_HEIGHT = 80; // h-20
+  const rawPositions = [
+    { x: 100, y: 100 }, // profile
+    { x: 400, y: 50  }, // exp-1
+    { x: 400, y: 200 }, // skills
+    { x: 700, y: 125 }, // projects
+    { x: 100, y: 300 }, // awards
+    { x: 400, y: 350 }, // edu
+    { x: 700, y: 50  }, // neo4j
+    { x: 100, y: 450 }, // terminal
+    { x: 700, y: 300 }, // contact
+  ];
+  const xs = rawPositions.map(p => p.x);
+  const ys = rawPositions.map(p => p.y);
+  const graphCenterX = (Math.min(...xs) + Math.max(...xs) + NODE_WIDTH) / 2;
+  const graphCenterY = (Math.min(...ys) + Math.max(...ys) + NODE_HEIGHT) / 2;
+  const dx = window.innerWidth / 2 - graphCenterX;
+  const dy = HEADER_HEIGHT + (window.innerHeight - HEADER_HEIGHT) / 2 - graphCenterY;
+  return { dx, dy };
+}
+
 export default function Workbench() {
-  const [nodes, setNodes] = useState<NodeData[]>([
+  const [nodes, setNodes] = useState<NodeData[]>(() => {
+    const { dx, dy } = computeCenteringOffset();
+    const p = (x: number, y: number) => centeredPosition(x, y, dx, dy);
+    return [
     {
       id: 'profile',
       type: 'profile',
       title: 'Varun',
       icon: User,
-      position: { x: 100, y: 100 },
+      position: p(100, 100),
       color: '#3b82f6',
       content: (
         <div className="space-y-4">
@@ -306,7 +338,7 @@ export default function Workbench() {
       type: 'experience',
       title: 'Infosys (Current)',
       icon: Briefcase,
-      position: { x: 400, y: 50 },
+      position: p(400, 50),
       color: '#10b981',
       content: (
         <div className="space-y-4">
@@ -329,7 +361,7 @@ export default function Workbench() {
       type: 'skills',
       title: 'Tech Stack',
       icon: Code,
-      position: { x: 400, y: 200 },
+      position: p(400, 200),
       color: '#f59e0b',
       content: (
         <div className="space-y-6">
@@ -365,7 +397,7 @@ export default function Workbench() {
       type: 'projects',
       title: 'Key Projects',
       icon: FolderOpen,
-      position: { x: 700, y: 125 },
+      position: p(700, 125),
       color: '#8b5cf6',
       content: (
         <div className="space-y-6">
@@ -389,7 +421,7 @@ export default function Workbench() {
       type: 'awards',
       title: 'Recognition',
       icon: Award,
-      position: { x: 100, y: 300 },
+      position: p(100, 300),
       color: '#ec4899',
       content: (
         <div className="space-y-4">
@@ -417,7 +449,7 @@ export default function Workbench() {
       type: 'education',
       title: 'Education',
       icon: GraduationCap,
-      position: { x: 400, y: 350 },
+      position: p(400, 350),
       color: '#06b6d4',
       content: (
         <div className="space-y-6">
@@ -441,7 +473,7 @@ export default function Workbench() {
       type: 'database',
       title: 'Knowledge Graph',
       icon: Database,
-      position: { x: 700, y: 50 },
+      position: p(700, 50),
       color: '#4ade80',
       content: (
         <div className="space-y-4">
@@ -460,7 +492,7 @@ export default function Workbench() {
       type: 'system',
       title: 'System Logs',
       icon: Terminal,
-      position: { x: 100, y: 450 },
+      position: p(100, 450),
       color: '#a1a1aa',
       content: (
         <div className="bg-black p-4 rounded-lg font-mono text-[10px] space-y-1 h-64 overflow-y-auto custom-scrollbar">
@@ -493,11 +525,11 @@ export default function Workbench() {
       type: 'contact',
       title: 'Get in Touch',
       icon: MessageSquare,
-      position: { x: 700, y: 300 },
+      position: p(700, 300),
       color: '#f43f5e',
       content: <ContactForm />
     }
-  ]);
+  ]; });
 
   const [connections, setConnections] = useState<Connection[]>([
     { from: 'profile', to: 'exp-1' },
@@ -515,43 +547,6 @@ export default function Workbench() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [activeNodeIndex, setActiveNodeIndex] = useState<number>(-1);
   const [executionStatus, setExecutionStatus] = useState<'idle' | 'running' | 'success'>('idle');
-  const workbenchRef = useRef<HTMLDivElement>(null);
-
-  // Center the node graph in the viewport on initial render
-  useLayoutEffect(() => {
-    if (!workbenchRef.current) return;
-    const rect = workbenchRef.current.getBoundingClientRect();
-    const HEADER_HEIGHT = 64;
-    const NODE_WIDTH = 192; // w-48
-    const NODE_HEIGHT = 80; // h-20
-
-    setNodes(prev => {
-      if (prev.length === 0) return prev;
-      const xs = prev.map(n => n.position.x);
-      const ys = prev.map(n => n.position.y);
-      const minX = Math.min(...xs);
-      const minY = Math.min(...ys);
-      const maxX = Math.max(...xs) + NODE_WIDTH;
-      const maxY = Math.max(...ys) + NODE_HEIGHT;
-
-      const graphCenterX = (minX + maxX) / 2;
-      const graphCenterY = (minY + maxY) / 2;
-
-      const canvasCenterX = rect.width / 2;
-      const canvasCenterY = HEADER_HEIGHT + (rect.height - HEADER_HEIGHT) / 2;
-
-      const offsetX = canvasCenterX - graphCenterX;
-      const offsetY = canvasCenterY - graphCenterY;
-
-      return prev.map(n => ({
-        ...n,
-        position: {
-          x: n.position.x + offsetX,
-          y: n.position.y + offsetY,
-        },
-      }));
-    });
-  }, []);
 
   const handleDrag = (id: string, pos: NodePosition) => {
     setNodes(prev => prev.map(n => n.id === id ? { ...n, position: pos } : n));
@@ -654,7 +649,6 @@ export default function Workbench() {
 
       {/* Workbench Canvas */}
       <div 
-        ref={workbenchRef}
         className="absolute inset-0 overflow-hidden cursor-crosshair z-0"
       >
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
