@@ -1,3 +1,6 @@
+# Ensure index.html is served as the default page
+DirectoryIndex index.html
+
 RewriteEngine On
 RewriteBase /
 RewriteRule ^index\.html$ - [L]
