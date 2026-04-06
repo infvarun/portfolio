@@ -3,14 +3,11 @@ import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/re
 import { 
   User, Briefcase, Code, FolderOpen, GraduationCap, Award, Mail, 
   Linkedin, Github, ExternalLink, Play, Settings, Plus, Trash2, 
-  Save, LogIn, LogOut, MessageSquare, ChevronRight, X, Terminal,
+  Save, MessageSquare, ChevronRight, X, Terminal,
   Cpu, Database, Layout, Globe, Search, Shield, Zap, Send, CheckCircle2, Bot
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { User as FirebaseUser, signOut } from 'firebase/auth';
-import { auth, db } from './firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ChatBot } from './components/ChatBot';
 
 // --- Utility ---
@@ -40,8 +37,6 @@ interface Connection {
 }
 
 interface WorkbenchProps {
-  user: FirebaseUser | null;
-  onLogin: () => void;
 }
 
 // --- Components ---
@@ -197,10 +192,8 @@ const ContactForm = () => {
     e.preventDefault();
     setStatus('sending');
     try {
-      await addDoc(collection(db, 'messages'), {
-        ...form,
-        timestamp: serverTimestamp()
-      });
+      // TODO: wire up to a backend endpoint or email service
+      await new Promise(resolve => setTimeout(resolve, 800));
       setStatus('sent');
       setForm({ name: '', email: '', message: '' });
     } catch (error) {
@@ -285,7 +278,7 @@ const Loader2 = ({ size, className }: { size: number, className?: string }) => (
 
 // --- Main App ---
 
-export default function Workbench({ user, onLogin }: WorkbenchProps) {
+export default function Workbench() {
   const [nodes, setNodes] = useState<NodeData[]>([
     {
       id: 'profile',
@@ -582,10 +575,6 @@ export default function Workbench({ user, onLogin }: WorkbenchProps) {
     setSelectedNodeId('profile');
   };
 
-  const handleLogout = () => {
-    signOut(auth);
-  };
-
   const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
 
   return (
@@ -622,24 +611,6 @@ export default function Workbench({ user, onLogin }: WorkbenchProps) {
             {isExecuting ? "EXECUTING..." : "RUN WORKFLOW"}
           </button>
           <div className="h-6 w-[1px] bg-zinc-800 mx-2" />
-          
-          {user ? (
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col items-end">
-                <span className="text-[10px] font-bold text-white uppercase tracking-tight">{user.displayName}</span>
-                <button onClick={handleLogout} className="text-[9px] text-zinc-500 hover:text-red-400 transition-colors uppercase font-bold">Disconnect</button>
-              </div>
-              <img src={user.photoURL || ''} alt="" className="w-8 h-8 rounded-lg border border-zinc-800" />
-            </div>
-          ) : (
-            <button 
-              onClick={onLogin}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-xs font-bold text-white transition-all"
-            >
-              <LogIn size={14} />
-              CONNECT_AUTH
-            </button>
-          )}
           
           <button className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg transition-all">
             <Settings size={20} />
