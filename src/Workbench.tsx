@@ -1,188 +1,23 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
-import { 
-  User, Briefcase, Code, FolderOpen, GraduationCap, Award, Mail, 
-  Linkedin, Github, ExternalLink, Play, Settings, Plus, Trash2, 
-  Save, MessageSquare, ChevronRight, X, Terminal,
-  Cpu, Database, Layout, Globe, Search, Shield, Zap, Send, CheckCircle2
+import React, { useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  User, Briefcase, Code, FolderOpen, GraduationCap, Award, Mail,
+  Linkedin, Terminal, Database, MessageSquare, X,
+  Zap, Send, CheckCircle2
 } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import WorkflowCanvas, { type CanvasNode, type CanvasConnection } from './WorkflowCanvas';
 
-// --- Utility ---
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-// --- Types ---
-interface NodePosition {
-  x: number;
-  y: number;
-}
-
-interface NodeData {
+// ── Types ──────────────────────────────────────────────────────────────
+interface DetailNodeData {
   id: string;
   type: string;
   title: string;
-  icon: React.ElementType;
-  position: NodePosition;
-  content: React.ReactNode;
   color: string;
+  icon: React.ElementType;
+  content: React.ReactNode;
 }
 
-interface Connection {
-  from: string;
-  to: string;
-}
-
-interface WorkbenchProps {
-}
-
-// --- Components ---
-
-const GridBackground = () => (
-  <div className="absolute inset-0 pointer-events-none overflow-hidden">
-    <div 
-      className="absolute inset-0 opacity-[0.03]" 
-      style={{ 
-        backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', 
-        backgroundSize: '40px 40px' 
-      }} 
-    />
-    <div 
-      className="absolute inset-0 opacity-[0.05]" 
-      style={{ 
-        backgroundImage: 'linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)', 
-        backgroundSize: '200px 200px' 
-      }} 
-    />
-  </div>
-);
-
-const ConnectionLine: React.FC<{ from: string, to: string, nodes: NodeData[] }> = ({ from, to, nodes }) => {
-  const fromNode = nodes.find(n => n.id === from);
-  const toNode = nodes.find(n => n.id === to);
-
-  if (!fromNode || !toNode) return null;
-
-  const x1 = fromNode.position.x + 100; // Half width
-  const y1 = fromNode.position.y + 40;  // Half height
-  const x2 = toNode.position.x + 100;
-  const y2 = toNode.position.y + 40;
-
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const dr = Math.sqrt(dx * dx + dy * dy);
-
-  // Bezier curve path
-  const path = `M ${x1} ${y1} C ${x1 + dx / 2} ${y1}, ${x1 + dx / 2} ${y2}, ${x2} ${y2}`;
-
-  return (
-    <g>
-      <path
-        d={path}
-        fill="none"
-        stroke="rgba(255, 255, 255, 0.1)"
-        strokeWidth="2"
-        className="transition-all duration-300"
-      />
-      <motion.path
-        d={path}
-        fill="none"
-        stroke={fromNode.color}
-        strokeWidth="2"
-        initial={{ pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 0.4 }}
-        transition={{ duration: 1.5, repeat: Infinity, repeatType: "loop", ease: "linear" }}
-      />
-    </g>
-  );
-};
-
-const Node: React.FC<{ 
-  node: NodeData, 
-  onDrag: (id: string, pos: NodePosition) => void, 
-  onClick: (id: string) => void,
-  isSelected: boolean
-}> = ({ 
-  node, 
-  onDrag, 
-  onClick, 
-  isSelected 
-}) => {
-  const Icon = node.icon;
-
-  return (
-    <motion.div
-      drag
-      dragMomentum={false}
-      onDrag={(_, info) => {
-        onDrag(node.id, { x: node.position.x + info.delta.x, y: node.position.y + info.delta.y });
-      }}
-      initial={node.position}
-      animate={node.position}
-      onClick={() => onClick(node.id)}
-      className={cn(
-        "absolute w-48 h-20 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 rounded-xl cursor-grab active:cursor-grabbing flex items-center px-4 gap-3 group transition-all duration-300",
-        isSelected ? "border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]" : "hover:border-zinc-600"
-      )}
-      style={{ zIndex: isSelected ? 50 : 10 }}
-    >
-      <div 
-        className="w-10 h-10 rounded-lg flex items-center justify-center transition-colors"
-        style={{ backgroundColor: `${node.color}20`, color: node.color }}
-      >
-        <Icon size={20} />
-      </div>
-      <div className="flex flex-col">
-        <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{node.type}</span>
-        <span className="text-sm font-medium text-zinc-200 truncate w-28">{node.title}</span>
-      </div>
-      
-      {/* Ports */}
-      <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-zinc-700 border border-zinc-900" />
-      <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-zinc-700 border border-zinc-900 group-hover:bg-blue-500 transition-colors" />
-    </motion.div>
-  );
-};
-
-const DetailPanel = ({ node, onClose }: { node: NodeData | null, onClose: () => void }) => {
-  if (!node) return null;
-
-  return (
-    <motion.div
-      initial={{ x: 400, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: 400, opacity: 0 }}
-      className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-zinc-950 border-l border-zinc-800 shadow-2xl z-[100] overflow-y-auto p-8"
-    >
-      <button 
-        onClick={onClose}
-        className="absolute top-6 right-6 p-2 text-zinc-500 hover:text-white hover:bg-zinc-900 rounded-lg transition-all"
-      >
-        <X size={20} />
-      </button>
-
-      <div className="flex items-center gap-4 mb-8">
-        <div 
-          className="w-16 h-16 rounded-2xl flex items-center justify-center"
-          style={{ backgroundColor: `${node.color}15`, color: node.color }}
-        >
-          <node.icon size={32} />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold text-white">{node.title}</h2>
-          <p className="text-zinc-500 uppercase tracking-widest text-xs font-bold">{node.type}</p>
-        </div>
-      </div>
-
-      <div className="space-y-6 text-zinc-300 leading-relaxed">
-        {node.content}
-      </div>
-    </motion.div>
-  );
-};
-
+// ── Contact Form ───────────────────────────────────────────────────────
 const ContactForm = () => {
   const [form, setForm] = useState({ name: '', email: '', message: '' });
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
@@ -191,7 +26,6 @@ const ContactForm = () => {
     e.preventDefault();
     setStatus('sending');
     try {
-      // TODO: wire up to a backend endpoint or email service
       await new Promise(resolve => setTimeout(resolve, 800));
       setStatus('sent');
       setForm({ name: '', email: '', message: '' });
@@ -209,7 +43,7 @@ const ContactForm = () => {
         </div>
         <h3 className="text-xl font-bold text-white">Message Sent!</h3>
         <p className="text-zinc-400">Varun will get back to you soon.</p>
-        <button 
+        <button
           onClick={() => setStatus('idle')}
           className="mt-4 px-6 py-2 bg-zinc-900 hover:bg-zinc-800 rounded-lg text-sm font-bold transition-all"
         >
@@ -223,9 +57,9 @@ const ContactForm = () => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Name</label>
-        <input 
+        <input
           required
-          type="text" 
+          type="text"
           value={form.name}
           onChange={e => setForm({ ...form, name: e.target.value })}
           className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
@@ -234,9 +68,9 @@ const ContactForm = () => {
       </div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Email</label>
-        <input 
+        <input
           required
-          type="email" 
+          type="email"
           value={form.email}
           onChange={e => setForm({ ...form, email: e.target.value })}
           className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
@@ -245,7 +79,7 @@ const ContactForm = () => {
       </div>
       <div>
         <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Message</label>
-        <textarea 
+        <textarea
           required
           rows={4}
           value={form.message}
@@ -254,76 +88,88 @@ const ContactForm = () => {
           placeholder="How can I help you?"
         />
       </div>
-      <button 
+      <button
         disabled={status === 'sending'}
         className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(37,99,235,0.2)]"
       >
-        {status === 'sending' ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+        {status === 'sending' ? <Spinner size={20} /> : <Send size={20} />}
         {status === 'sending' ? "SENDING..." : "SEND MESSAGE"}
       </button>
     </form>
   );
 };
 
-const Loader2 = ({ size, className }: { size: number, className?: string }) => (
-  <motion.div 
+const Spinner = ({ size }: { size: number }) => (
+  <motion.div
     animate={{ rotate: 360 }}
     transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-    className={className}
   >
     <Zap size={size} />
   </motion.div>
 );
 
-// --- Main App ---
+// ── Detail Panel ───────────────────────────────────────────────────────
+const DetailPanel = ({ node, onClose }: { node: DetailNodeData | null; onClose: () => void }) => {
+  if (!node) return null;
+  const Icon = node.icon;
 
-// Compute centered positions based on current viewport dimensions
-function centeredPosition(x: number, y: number, dx: number, dy: number): NodePosition {
-  return { x: x + dx, y: y + dy };
-}
+  return (
+    <motion.div
+      initial={{ x: 400, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: 400, opacity: 0 }}
+      className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-zinc-950 border-l border-zinc-800 shadow-2xl z-[100] overflow-y-auto p-8"
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-6 right-6 p-2 text-zinc-500 hover:text-white hover:bg-zinc-900 rounded-lg transition-all"
+      >
+        <X size={20} />
+      </button>
 
-function computeCenteringOffset(): { dx: number; dy: number } {
-  const HEADER_HEIGHT = 64;
-  const NODE_WIDTH = 192; // w-48
-  const NODE_HEIGHT = 80; // h-20
-  const rawPositions = [
-    { x: 100, y: 100 }, // profile
-    { x: 400, y: 50  }, // exp-1
-    { x: 400, y: 200 }, // skills
-    { x: 700, y: 125 }, // projects
-    { x: 100, y: 300 }, // awards
-    { x: 400, y: 350 }, // edu
-    { x: 700, y: 50  }, // neo4j
-    { x: 100, y: 450 }, // terminal
-    { x: 700, y: 300 }, // contact
+      <div className="flex items-center gap-4 mb-8">
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center"
+          style={{ backgroundColor: `${node.color}15`, color: node.color }}
+        >
+          <Icon size={32} />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-white">{node.title}</h2>
+          <p className="text-zinc-500 uppercase tracking-widest text-xs font-bold">{node.type}</p>
+        </div>
+      </div>
+
+      <div className="space-y-6 text-zinc-300 leading-relaxed">
+        {node.content}
+      </div>
+    </motion.div>
+  );
+};
+
+// ── Portfolio Data ─────────────────────────────────────────────────────
+function buildPortfolioData(): { canvasNodes: CanvasNode[]; detailMap: Record<string, DetailNodeData>; connections: CanvasConnection[] } {
+  const canvasNodes: CanvasNode[] = [
+    { id: 'profile', type: 'profile', title: 'Varun', position: { x: 100, y: 200 }, color: '#3b82f6' },
+    { id: 'exp-1', type: 'experience', title: 'Infosys (Current)', position: { x: 420, y: 80 }, color: '#10b981' },
+    { id: 'skills', type: 'skills', title: 'Tech Stack', position: { x: 420, y: 260 }, color: '#f59e0b' },
+    { id: 'projects', type: 'projects', title: 'Key Projects', position: { x: 740, y: 170 }, color: '#8b5cf6' },
+    { id: 'awards', type: 'awards', title: 'Recognition', position: { x: 100, y: 400 }, color: '#ec4899' },
+    { id: 'edu', type: 'education', title: 'Education', position: { x: 420, y: 440 }, color: '#06b6d4' },
+    { id: 'neo4j', type: 'database', title: 'Knowledge Graph', position: { x: 740, y: 50 }, color: '#4ade80' },
+    { id: 'terminal', type: 'system', title: 'System Logs', position: { x: 100, y: 580 }, color: '#a1a1aa' },
+    { id: 'contact', type: 'contact', title: 'Get in Touch', position: { x: 740, y: 370 }, color: '#f43f5e' },
   ];
-  const xs = rawPositions.map(p => p.x);
-  const ys = rawPositions.map(p => p.y);
-  const graphCenterX = (Math.min(...xs) + Math.max(...xs) + NODE_WIDTH) / 2;
-  const graphCenterY = (Math.min(...ys) + Math.max(...ys) + NODE_HEIGHT) / 2;
-  const dx = window.innerWidth / 2 - graphCenterX;
-  const dy = HEADER_HEIGHT + (window.innerHeight - HEADER_HEIGHT) / 2 - graphCenterY;
-  return { dx, dy };
-}
 
-export default function Workbench() {
-  const [nodes, setNodes] = useState<NodeData[]>(() => {
-    const { dx, dy } = computeCenteringOffset();
-    const p = (x: number, y: number) => centeredPosition(x, y, dx, dy);
-    return [
-    {
-      id: 'profile',
-      type: 'profile',
-      title: 'Varun',
-      icon: User,
-      position: p(100, 100),
-      color: '#3b82f6',
+  const detailMap: Record<string, DetailNodeData> = {
+    profile: {
+      id: 'profile', type: 'profile', title: 'Varun', color: '#3b82f6', icon: User,
       content: (
         <div className="space-y-4">
           <p className="text-lg">Seasoned Technology Lead</p>
           <p>Over 14 years of extensive experience in full-stack software development, architecting and delivering high-impact enterprise solutions.</p>
           <div className="flex gap-4 pt-4">
-            <a href="https://www.linkedin.com/in/varunved" target="_blank" className="p-3 bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-colors text-blue-400">
+            <a href="https://www.linkedin.com/in/varunved" target="_blank" rel="noreferrer" className="p-3 bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-colors text-blue-400">
               <Linkedin size={20} />
             </a>
             <a href="mailto:varunved1108@gmail.com" className="p-3 bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-colors text-red-400">
@@ -331,15 +177,10 @@ export default function Workbench() {
             </a>
           </div>
         </div>
-      )
+      ),
     },
-    {
-      id: 'exp-1',
-      type: 'experience',
-      title: 'Infosys (Current)',
-      icon: Briefcase,
-      position: p(400, 50),
-      color: '#10b981',
+    'exp-1': {
+      id: 'exp-1', type: 'experience', title: 'Infosys (Current)', color: '#10b981', icon: Briefcase,
       content: (
         <div className="space-y-4">
           <div className="border-l-2 border-emerald-500 pl-4 py-1">
@@ -354,15 +195,10 @@ export default function Workbench() {
             <li>Troubleshooting live production and operational issues with business stakeholders.</li>
           </ul>
         </div>
-      )
+      ),
     },
-    {
-      id: 'skills',
-      type: 'skills',
-      title: 'Tech Stack',
-      icon: Code,
-      position: p(400, 200),
-      color: '#f59e0b',
+    skills: {
+      id: 'skills', type: 'skills', title: 'Tech Stack', color: '#f59e0b', icon: Code,
       content: (
         <div className="space-y-6">
           <div>
@@ -390,15 +226,10 @@ export default function Workbench() {
             </div>
           </div>
         </div>
-      )
+      ),
     },
-    {
-      id: 'projects',
-      type: 'projects',
-      title: 'Key Projects',
-      icon: FolderOpen,
-      position: p(700, 125),
-      color: '#8b5cf6',
+    projects: {
+      id: 'projects', type: 'projects', title: 'Key Projects', color: '#8b5cf6', icon: FolderOpen,
       content: (
         <div className="space-y-6">
           <div className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl">
@@ -414,22 +245,17 @@ export default function Workbench() {
             <p className="text-xs text-zinc-400">Implemented SSO with OAuth2 and features for bulk data manipulation via REST APIs.</p>
           </div>
         </div>
-      )
+      ),
     },
-    {
-      id: 'awards',
-      type: 'awards',
-      title: 'Recognition',
-      icon: Award,
-      position: p(100, 300),
-      color: '#ec4899',
+    awards: {
+      id: 'awards', type: 'awards', title: 'Recognition', color: '#ec4899', icon: Award,
       content: (
         <div className="space-y-4">
           {[
             { name: 'Insta Award Q2 2025', desc: 'Agentic AI use cases for IRT' },
             { name: 'Insta Award Q1 2025', desc: 'Generative AI for Clinical IRT' },
             { name: 'Delivery Star 2021', desc: 'Successful critical project delivery' },
-            { name: 'Pfizer Champ 2017', desc: 'Exceptional performance award' }
+            { name: 'Pfizer Champ 2017', desc: 'Exceptional performance award' },
           ].map((a, i) => (
             <div key={i} className="flex gap-4 items-start">
               <div className="mt-1 p-1 bg-pink-500/10 text-pink-500 rounded">
@@ -442,15 +268,10 @@ export default function Workbench() {
             </div>
           ))}
         </div>
-      )
+      ),
     },
-    {
-      id: 'edu',
-      type: 'education',
-      title: 'Education',
-      icon: GraduationCap,
-      position: p(400, 350),
-      color: '#06b6d4',
+    edu: {
+      id: 'edu', type: 'education', title: 'Education', color: '#06b6d4', icon: GraduationCap,
       content: (
         <div className="space-y-6">
           <div className="relative pl-6 border-l border-zinc-800">
@@ -466,36 +287,26 @@ export default function Workbench() {
             <p className="text-xs text-zinc-500">2006 - 2009</p>
           </div>
         </div>
-      )
+      ),
     },
-    {
-      id: 'neo4j',
-      type: 'database',
-      title: 'Knowledge Graph',
-      icon: Database,
-      position: p(700, 50),
-      color: '#4ade80',
+    neo4j: {
+      id: 'neo4j', type: 'database', title: 'Knowledge Graph', color: '#4ade80', icon: Database,
       content: (
         <div className="space-y-4">
           <p className="text-sm">Expertise in Neo4j and Clinical Knowledge Graphs.</p>
           <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg font-mono text-[10px] text-emerald-500">
-            MATCH (p:Patient)-[:HAS_TRIAL]-&gt;(t:Trial)<br/>
-            WHERE t.status = 'ACTIVE'<br/>
+            MATCH (p:Patient)-[:HAS_TRIAL]-&gt;(t:Trial)<br />
+            WHERE t.status = 'ACTIVE'<br />
             RETURN p.id, t.name
           </div>
           <p className="text-xs text-zinc-500">Fine-tuning Clinical Knowledge Graphs for optimized IRT workflows.</p>
         </div>
-      )
+      ),
     },
-    {
-      id: 'terminal',
-      type: 'system',
-      title: 'System Logs',
-      icon: Terminal,
-      position: p(100, 450),
-      color: '#a1a1aa',
+    terminal: {
+      id: 'terminal', type: 'system', title: 'System Logs', color: '#a1a1aa', icon: Terminal,
       content: (
-        <div className="bg-black p-4 rounded-lg font-mono text-[10px] space-y-1 h-64 overflow-y-auto custom-scrollbar">
+        <div className="bg-black p-4 rounded-lg font-mono text-[10px] space-y-1 h-64 overflow-y-auto">
           <p className="text-blue-400">[SYSTEM] Initializing Varun_OS v2.5.0...</p>
           <p className="text-zinc-500">08:00:01 Loading core_competencies.so...</p>
           <p className="text-zinc-500">08:00:02 Research & Development [OK]</p>
@@ -511,27 +322,22 @@ export default function Workbench() {
           <p className="text-zinc-500 mt-2">08:00:20 Ready for interaction.</p>
           <div className="flex gap-1 mt-2">
             <span className="text-emerald-500">varun@portfolio:~$</span>
-            <motion.span 
+            <motion.span
               animate={{ opacity: [1, 0] }}
               transition={{ duration: 0.8, repeat: Infinity }}
-              className="w-2 h-4 bg-emerald-500"
+              className="w-2 h-4 bg-emerald-500 inline-block"
             />
           </div>
         </div>
-      )
+      ),
     },
-    {
-      id: 'contact',
-      type: 'contact',
-      title: 'Get in Touch',
-      icon: MessageSquare,
-      position: p(700, 300),
-      color: '#f43f5e',
-      content: <ContactForm />
-    }
-  ]; });
+    contact: {
+      id: 'contact', type: 'contact', title: 'Get in Touch', color: '#f43f5e', icon: MessageSquare,
+      content: <ContactForm />,
+    },
+  };
 
-  const [connections, setConnections] = useState<Connection[]>([
+  const connections: CanvasConnection[] = [
     { from: 'profile', to: 'exp-1' },
     { from: 'profile', to: 'skills' },
     { from: 'profile', to: 'awards' },
@@ -541,241 +347,83 @@ export default function Workbench() {
     { from: 'skills', to: 'neo4j' },
     { from: 'profile', to: 'terminal' },
     { from: 'profile', to: 'contact' },
-  ]);
+  ];
 
+  return { canvasNodes, detailMap, connections };
+}
+
+// ── Main Workbench ─────────────────────────────────────────────────────
+export default function Workbench() {
+  const [portfolioData] = useState(() => buildPortfolioData());
+  const [nodes, setNodes] = useState<CanvasNode[]>(portfolioData.canvasNodes);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [activeNodeIndex, setActiveNodeIndex] = useState<number>(-1);
-  const [executionStatus, setExecutionStatus] = useState<'idle' | 'running' | 'success'>('idle');
 
-  const handleDrag = (id: string, pos: NodePosition) => {
-    setNodes(prev => prev.map(n => n.id === id ? { ...n, position: pos } : n));
-  };
-
-  const handleNodeClick = (id: string) => {
+  const handleNodeClick = useCallback((id: string) => {
     setSelectedNodeId(id);
-  };
+  }, []);
 
-  const runPortfolio = async () => {
-    if (isExecuting) return;
-    
-    setIsExecuting(true);
-    setExecutionStatus('running');
-    setActiveNodeIndex(-1);
+  const handleNodeDrag = useCallback((id: string, pos: { x: number; y: number }) => {
+    setNodes(prev => prev.map(n => n.id === id ? { ...n, position: pos } : n));
+  }, []);
 
-    // Simulate a sequence of node activations
-    const sequence = [0, 1, 3, 6, 2, 5, 4, 7]; // Indices of nodes to highlight
-    
-    for (const index of sequence) {
-      setActiveNodeIndex(index);
-      // Add a small pulse effect to the active node
-      await new Promise(resolve => setTimeout(resolve, 600));
-    }
-    
-    setActiveNodeIndex(-1);
-    setExecutionStatus('success');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsExecuting(false);
-    setExecutionStatus('idle');
-    
-    // Automatically open the profile node at the end
-    setSelectedNodeId('profile');
-  };
+  const handleCanvasClick = useCallback(() => {
+    setSelectedNodeId(null);
+  }, []);
 
-  const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
+  const selectedDetail = selectedNodeId ? portfolioData.detailMap[selectedNodeId] : null;
 
   return (
     <div className="relative w-full h-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans selection:bg-blue-500/30">
-      <GridBackground />
+      {/* Canvas Workflow */}
+      <WorkflowCanvas
+        nodes={nodes}
+        connections={portfolioData.connections}
+        selectedNodeId={selectedNodeId}
+        onNodeClick={handleNodeClick}
+        onNodeDrag={handleNodeDrag}
+        onCanvasClick={handleCanvasClick}
+      />
 
-      {/* Top Bar */}
-      <header className="absolute top-0 left-0 right-0 h-16 border-b border-zinc-900 bg-zinc-950/50 backdrop-blur-xl flex items-center justify-between px-6 z-50">
-        <div className="flex items-center gap-4">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.4)]">
-            <Terminal size={18} className="text-white" />
+      {/* Header */}
+      <header className="absolute top-0 left-0 right-0 h-14 border-b border-zinc-800/50 bg-zinc-950/70 backdrop-blur-xl flex items-center justify-between px-6 z-50 pointer-events-none">
+        <div className="flex items-center gap-3 pointer-events-auto">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.3)]">
+            <Terminal size={16} className="text-white" />
           </div>
           <div>
-            <h1 className="text-sm font-bold tracking-tight">VARUN_WORKBENCH_V2</h1>
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">System Online</span>
-            </div>
+            <h1 className="text-sm font-bold tracking-tight">VARUN · PORTFOLIO</h1>
+            <p className="text-[10px] text-zinc-500 tracking-widest font-medium">CANVAS WORKFLOW</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={runPortfolio}
-            disabled={isExecuting}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all",
-              isExecuting 
-                ? "bg-zinc-900 text-zinc-500 cursor-not-allowed" 
-                : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-            )}
-          >
-            {isExecuting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-            {isExecuting ? "EXECUTING..." : "RUN WORKFLOW"}
-          </button>
-          <div className="h-6 w-[1px] bg-zinc-800 mx-2" />
-          
-          <button className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg transition-all">
-            <Settings size={20} />
-          </button>
+        <div className="flex items-center gap-3 pointer-events-auto">
+          <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold hidden sm:block">
+            Click a node to explore · Scroll to zoom · Drag to pan
+          </span>
         </div>
       </header>
-
-      {/* Sidebar Tools */}
-      <aside className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-40">
-        {[
-          { icon: Plus, label: 'Add Node' },
-          { icon: Layout, label: 'Auto Layout' },
-          { icon: Search, label: 'Search' },
-          { icon: Shield, label: 'Security' },
-          { icon: Database, label: 'Data' },
-        ].map((tool, i) => (
-          <button 
-            key={i}
-            onClick={tool.action}
-            className="group relative p-3 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 rounded-xl hover:border-zinc-600 hover:bg-zinc-800 transition-all"
-          >
-            <tool.icon size={20} className="text-zinc-400 group-hover:text-white" />
-            <span className="absolute left-full ml-3 px-2 py-1 bg-zinc-800 text-[10px] text-white rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap uppercase tracking-widest font-bold">
-              {tool.label}
-            </span>
-          </button>
-        ))}
-      </aside>
-
-      {/* Workbench Canvas */}
-      <div 
-        className="absolute inset-0 overflow-hidden cursor-crosshair z-0"
-      >
-        <svg className="absolute inset-0 w-full h-full pointer-events-none">
-          {connections.map((conn, i) => {
-            const fromNode = nodes.find(n => n.id === conn.from);
-            const toNode = nodes.find(n => n.id === conn.to);
-            const isActive = isExecuting && 
-              nodes.findIndex(n => n.id === conn.from) === activeNodeIndex;
-
-            return (
-              <React.Fragment key={i}>
-                <ConnectionLine from={conn.from} to={conn.to} nodes={nodes} />
-                {isActive && (
-                  <motion.path
-                    d={`M ${fromNode!.position.x + 100} ${fromNode!.position.y + 40} C ${fromNode!.position.x + 100 + (toNode!.position.x - fromNode!.position.x) / 2} ${fromNode!.position.y + 40}, ${fromNode!.position.x + 100 + (toNode!.position.x - fromNode!.position.x) / 2} ${toNode!.position.y + 40}, ${toNode!.position.x + 100} ${toNode!.position.y + 40}`}
-                    fill="none"
-                    stroke="#10b981"
-                    strokeWidth="4"
-                    initial={{ pathLength: 0, opacity: 0 }}
-                    animate={{ pathLength: 1, opacity: 0.8 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.4 }}
-                  />
-                )}
-              </React.Fragment>
-            );
-          })}
-        </svg>
-
-        {nodes.map((node, index) => (
-          <Node 
-            key={node.id} 
-            node={node} 
-            onDrag={handleDrag} 
-            onClick={handleNodeClick}
-            isSelected={selectedNodeId === node.id || activeNodeIndex === index}
-          />
-        ))}
-      </div>
-
-      {/* Execution Overlay */}
-      <AnimatePresence>
-        {isExecuting && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-zinc-950/20 backdrop-blur-[1px] z-[60] flex items-center justify-center pointer-events-none"
-          >
-            <div className="flex flex-col items-center gap-6">
-              {executionStatus === 'running' ? (
-                <>
-                  <div className="relative">
-                    <motion.div 
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                      className="w-24 h-24 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Terminal size={32} className="text-emerald-500" />
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <h3 className="text-xl font-bold text-white tracking-tight">Compiling Portfolio...</h3>
-                    <p className="text-zinc-400 text-sm font-mono mt-2">Fetching Varun's experience data from clinical_db...</p>
-                  </div>
-                </>
-              ) : (
-                <motion.div 
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="flex flex-col items-center gap-4 bg-zinc-900/90 border border-emerald-500/50 p-8 rounded-3xl backdrop-blur-xl shadow-[0_0_50px_rgba(16,185,129,0.2)]"
-                >
-                  <div className="w-20 h-20 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center">
-                    <CheckCircle2 size={48} />
-                  </div>
-                  <div className="text-center">
-                    <h3 className="text-2xl font-bold text-white tracking-tight">Deployment Successful</h3>
-                    <p className="text-zinc-400 text-sm font-mono mt-2">Varun's professional workbench is now live.</p>
-                  </div>
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Detail Panel */}
       <AnimatePresence>
         {selectedNodeId && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedNodeId(null)}
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90]"
             />
-            <DetailPanel node={selectedNode} onClose={() => setSelectedNodeId(null)} />
+            <DetailPanel node={selectedDetail} onClose={() => setSelectedNodeId(null)} />
           </>
         )}
       </AnimatePresence>
 
-      {/* Footer Info */}
-      <footer className="absolute bottom-6 right-6 flex items-center gap-6 z-40">
-        <div className="flex items-center gap-3 px-4 py-2 bg-zinc-900/80 backdrop-blur-md border border-zinc-800 rounded-full">
-          <div className="flex -space-x-2">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="w-6 h-6 rounded-full border-2 border-zinc-900 bg-zinc-800 flex items-center justify-center overflow-hidden">
-                <img src={`https://i.pravatar.cc/100?u=${i}`} alt="" className="w-full h-full object-cover grayscale" />
-              </div>
-            ))}
-          </div>
-          <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">3 Collaborators Active</span>
-        </div>
-        
-        <div className="flex items-center gap-4 text-zinc-500 text-[10px] font-bold uppercase tracking-widest">
-          <div className="flex items-center gap-2">
-            <Cpu size={12} />
-            <span>CPU: 12%</span>
-          </div>
-          <div className="flex items-center gap-2 text-emerald-500">
-            <Globe size={12} />
-            <span>Latency: 24ms</span>
-          </div>
-        </div>
-      </footer>
+      {/* Minimap hint */}
+      <div className="absolute bottom-4 left-4 z-40 flex items-center gap-2 px-3 py-2 bg-zinc-900/60 backdrop-blur-md border border-zinc-800/50 rounded-full">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">{nodes.length} Nodes · {portfolioData.connections.length} Connections</span>
+      </div>
     </div>
   );
 }
