@@ -1,13 +1,14 @@
-import { LucideIcon } from 'lucide-react';
-
-export interface NodeData {
+export interface CanvasNodeData {
   id: string;
-  type: 'profile' | 'experience' | 'skill' | 'project' | 'education' | 'award' | 'contact';
+  type: string;
   title: string;
-  content: any;
-  icon: LucideIcon;
   position: { x: number; y: number };
-  connections: string[]; // IDs of nodes this node connects to
+  color: string;
+}
+
+export interface CanvasConnectionData {
+  from: string;
+  to: string;
 }
 
 export interface Experience {
